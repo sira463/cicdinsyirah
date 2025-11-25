@@ -21,7 +21,8 @@ class ApiTest extends TestCase
             'http' => [
                 'method'  => $method,
                 'header'  => 'Content-type: application/json',
-                'content' => json_encode($data),
+                // Pastikan data kosong di-encode sebagai '{}' untuk PUT/DELETE
+                'content' => json_encode($data), 
                 'ignore_errors' => true,
             ],
         ];
@@ -32,10 +33,10 @@ class ApiTest extends TestCase
         $response = json_decode($result, true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-             // Jika response bukan JSON, ambil kode status HTTP untuk debug
-             $http_response_header_string = implode("\n", $http_response_header);
-             $status_line = explode("\n", $http_response_header_string)[0];
-             return ['status' => 'error', 'message' => 'Response bukan JSON atau server error: ' . $status_line];
+            // Jika response bukan JSON, ambil kode status HTTP untuk debug
+            $http_response_header_string = implode("\n", $http_response_header);
+            $status_line = explode("\n", $http_response_header_string)[0];
+            return ['status' => 'error', 'message' => 'Response bukan JSON atau server error: ' . $status_line];
         }
 
         return $response;
@@ -62,6 +63,7 @@ class ApiTest extends TestCase
         $searchResponse = $this->makeApiCall('GET', [], 'Test CI Kontak');
         $this->assertGreaterThan(0, count($searchResponse['data']), "TC-03 Gagal: Kontak baru tidak ditemukan.");
         
+        // Simpan ID yang baru dibuat
         self::$lastInsertId = $searchResponse['data'][0]['id']; 
     }
 
@@ -106,7 +108,8 @@ class ApiTest extends TestCase
         // TC-08: Pencarian yang berhasil (cari 'Andi')
         $responseSuccess = $this->makeApiCall('GET', [], 'Andi');
         $this->assertEquals('success', $responseSuccess['status']);
-        $this->assertGreaterThanOrEqual(1, count($responseSuccess['data']), "TC-08 Gagal: Kontak 'Andi' tidak ditemukan.");
+        // Asumsi data 'Andi' sudah ada di database
+        $this->assertGreaterThanOrEqual(1, count($responseSuccess['data']), "TC-08 Gagal: Kontak 'Andi' tidak ditemukan."); 
 
         // TC-09: Pencarian yang gagal (cari 'Xyz')
         $responseFail = $this->makeApiCall('GET', [], 'Xyz');
@@ -116,41 +119,63 @@ class ApiTest extends TestCase
 
     /**
      * TC-10 & TC-11: Edit kontak (Update)
-     * Keterangan: Fungsi UPDATE di API Anda tidak mengembalikan pesan sukses, jadi kita cek status
+     * Telah diaktifkan menggunakan logic PUT yang sudah ada di api.php
      */
     public function testUpdateContact()
     {
         $this->assertNotNull(self::$lastInsertId, "ID Kontak dibutuhkan untuk TC-10/11.");
 
-        // TC-10: Update dengan data valid
+        // Data baru untuk update
         $validUpdateData = [
             'id' => self::$lastInsertId,
-            'nama' => 'Test Update OK', 
+            'nama' => 'Test Update OK', // Nama baru
             'telepon' => '08999999999',
             'email' => 'update.ok@gmail.com'
         ];
+        
+        // Kirim permintaan PUT
         $response = $this->makeApiCall('PUT', $validUpdateData);
-        // API.php Anda tidak menangani PUT/DELETE secara eksplisit, kita asumsikan jika tidak ada error, eksekusi berhasil.
-        // Untuk PHPUnit murni, PUT/DELETE harus diuji terpisah atau diatur di api.php. 
-        // Karena kode api.php Anda hanya memiliki GET/POST/default, kita ubah PUT/DELETE di API lokal menjadi POST/GET
-        
-        // Asumsi: Karena api.php Anda TIDAK memiliki logic untuk PUT/DELETE, kita tidak bisa menguji TC-10, TC-11, TC-12, TC-13 secara otomatis
-        // kecuali kita tambahkan logic PUT/DELETE ke api.php Anda (yang melanggar aturan "kode asli").
 
-        // KARENA KODE ANDA TIDAK MENGANDUNG LOGIC PUT/DELETE, kita akan uji GET/POST dan Validasi.
+        // TC-10: Cek apakah update berhasil
+        $this->assertEquals('success', $response['status'], 
+            "TC-10 Gagal: Update valid. Pesan: " . ($response['message'] ?? 'N/A')
+        );
         
-        // Jika Anda tambahkan kode PUT/DELETE, uji ini akan berfungsi:
-        // $this->assertEquals('success', $response['status'], "TC-10 Gagal: Update valid.");
+        // Verifikasi Data (TC-11): Cek apakah data di database sudah berubah
+        $verificationResponse = $this->makeApiCall('GET', [], 'Test Update OK');
         
-        // Jika Anda ingin menguji TC-10/11/12/13, Anda HARUS tambahkan logic PUT/DELETE ke api.php Anda (Lihat catatan di bawah).
-        $this->markTestSkipped('TC-10/11/12/13 dilompati karena api.php tidak memiliki logic PUT/DELETE');
+        $this->assertEquals(1, count($verificationResponse['data']), "TC-11 Gagal: Kontak hasil update tidak ditemukan.");
+        $updatedContact = $verificationResponse['data'][0];
+        
+        $this->assertEquals('Test Update OK', $updatedContact['nama'], "TC-11 Gagal: Nama tidak terupdate.");
+        $this->assertEquals('08999999999', $updatedContact['telepon'], "TC-11 Gagal: Telepon tidak terupdate.");
+        $this->assertEquals('update.ok@gmail.com', $updatedContact['email'], "TC-11 Gagal: Email tidak terupdate.");
     }
 
     /**
      * TC-12: Hapus kontak (Delete)
+     * Telah diaktifkan menggunakan logic DELETE yang sudah ada di api.php
      */
     public function testDeleteContact()
     {
-        $this->markTestSkipped('TC-12/13 dilompati karena api.php tidak memiliki logic DELETE');
+        $this->assertNotNull(self::$lastInsertId, "ID Kontak dibutuhkan untuk TC-12.");
+
+        $deleteData = ['id' => self::$lastInsertId];
+        
+        // Kirim permintaan DELETE
+        $response = $this->makeApiCall('DELETE', $deleteData);
+
+        // TC-12: Cek apakah delete berhasil
+        $this->assertEquals('success', $response['status'], 
+            "TC-12 Gagal: Delete kontak. Pesan: " . ($response['message'] ?? 'N/A')
+        );
+
+        // Verifikasi Penghapusan: Cek apakah kontak tersebut sudah tidak ada lagi
+        $verificationResponse = $this->makeApiCall('GET', [], 'Test Update OK'); // Cari berdasarkan nama terakhir
+        
+        $this->assertCount(0, $verificationResponse['data'], "TC-12 Gagal: Kontak masih ditemukan setelah dihapus.");
+        
+        // Set ID menjadi null setelah penghapusan berhasil
+        self::$lastInsertId = null;
     }
 }

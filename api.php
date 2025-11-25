@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 
+// --- 1. KONFIGURASI DATABASE ---
 define('DB_SERVER', 'localhost');
 define('DB_USERNAME', 'root');
 define('DB_PASSWORD', '');
@@ -8,17 +9,25 @@ define('DB_NAME', 'db_kontak_sederhana');
 
 $conn = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 if ($conn->connect_error) {
+    // Menghentikan eksekusi jika koneksi database gagal
     die(json_encode(['status'=>'error','message'=>'Koneksi database gagal: '.$conn->connect_error]));
 }
 
+// --- 2. FUNGSI VALIDASI INPUT ---
 function validate_input($data){
     $errors = [];
+    
+    // Validasi Nama: tidak boleh kosong
     if(empty($data['nama'])){
         $errors[] = 'Nama tidak boleh kosong';
     }
+    
+    // Validasi Telepon: harus angka
     if(empty($data['telepon']) || !preg_match('/^[0-9]+$/', $data['telepon'])){
         $errors[] = 'Nomor Telepon hanya boleh angka';
     }
+    
+    // Validasi Email: format harus valid dan harus berakhiran @gmail.com
     if(!empty($data['email'])){
         if(!filter_var($data['email'], FILTER_VALIDATE_EMAIL)){
             $errors[] = 'Format email tidak valid';
@@ -29,39 +38,58 @@ function validate_input($data){
     return $errors;
 }
 
+// --- 3. LOGIC UTAMA (SWITCH METHOD) ---
 $method = $_SERVER['REQUEST_METHOD'];
 
 switch($method){
+    
+    // ----------------------------------------------------
+    // CASE 'GET' (READ: Ambil Data / Cari)
+    // ----------------------------------------------------
     case 'GET':
         $search = $_GET['search'] ?? '';
         $sql = "SELECT id, nama, telepon, email FROM kontak";
+        
+        // Menambahkan klausa WHERE jika ada parameter pencarian
         if(!empty($search)){
             $sql .= " WHERE nama LIKE ?";
         }
+        
         $stmt = $conn->prepare($sql);
         if(!empty($search)){
             $searchTerm = '%'.$search.'%';
-            $stmt->bind_param("s", $searchTerm);
+            // Menggunakan "s" untuk string
+            $stmt->bind_param("s", $searchTerm); 
         }
         $stmt->execute();
         $result = $stmt->get_result();
+        
         $kontak = [];
         while($row = $result->fetch_assoc()){
             $kontak[] = $row;
         }
+        
         echo json_encode(['status'=>'success','data'=>$kontak]);
         break;
 
+    // ----------------------------------------------------
+    // CASE 'POST' (CREATE: Tambah Kontak)
+    // ----------------------------------------------------
     case 'POST':
         $data = json_decode(file_get_contents('php://input'), true);
+        
+        // Cek Validasi
         $errors = validate_input($data);
         if(!empty($errors)){
             echo json_encode(['status'=>'error','message'=>implode(', ', $errors)]);
             break;
         }
+        
         $sql = "INSERT INTO kontak (nama, telepon, email) VALUES (?,?,?)";
         $stmt = $conn->prepare($sql);
+        // Menggunakan "sss" untuk tiga string (nama, telepon, email)
         $stmt->bind_param("sss", $data['nama'], $data['telepon'], $data['email']);
+        
         if($stmt->execute()){
             echo json_encode(['status'=>'success','message'=>'Kontak berhasil disimpan']);
         } else {
@@ -69,20 +97,29 @@ switch($method){
         }
         break;
 
+    // ----------------------------------------------------
+    // CASE 'PUT' (UPDATE: Perbarui Kontak)
+    // ----------------------------------------------------
     case 'PUT':
         $data = json_decode(file_get_contents('php://input'), true);
+        
         if(!isset($data['id'])){
             echo json_encode(['status'=>'error','message'=>'ID kontak tidak ditemukan']);
             break;
         }
+        
+        // Cek Validasi
         $errors = validate_input($data);
         if(!empty($errors)){
             echo json_encode(['status'=>'error','message'=>implode(', ', $errors)]);
             break;
         }
+        
         $sql = "UPDATE kontak SET nama=?, telepon=?, email=? WHERE id=?";
         $stmt = $conn->prepare($sql);
+        // Menggunakan "sssi" untuk tiga string dan satu integer (id)
         $stmt->bind_param("sssi", $data['nama'], $data['telepon'], $data['email'], $data['id']);
+        
         if($stmt->execute()){
             echo json_encode(['status'=>'success','message'=>'Kontak berhasil diperbarui']);
         } else {
@@ -90,15 +127,22 @@ switch($method){
         }
         break;
 
+    // ----------------------------------------------------
+    // CASE 'DELETE' (DELETE: Hapus Kontak)
+    // ----------------------------------------------------
     case 'DELETE':
         $data = json_decode(file_get_contents('php://input'), true);
+        
         if(!isset($data['id'])){
             echo json_encode(['status'=>'error','message'=>'ID kontak tidak ditemukan']);
             break;
         }
+        
         $sql = "DELETE FROM kontak WHERE id=?";
         $stmt = $conn->prepare($sql);
+        // Menggunakan "i" untuk integer (id)
         $stmt->bind_param("i", $data['id']);
+        
         if($stmt->execute()){
             echo json_encode(['status'=>'success','message'=>'Kontak berhasil dihapus']);
         } else {
@@ -106,10 +150,16 @@ switch($method){
         }
         break;
 
+    // ----------------------------------------------------
+    // DEFAULT (Metode Tidak Diizinkan)
+    // ----------------------------------------------------
     default:
+        // Mengatur kode status HTTP 405 (Method Not Allowed)
         http_response_code(405);
         echo json_encode(['status'=>'error','message'=>'Metode tidak diizinkan']);
         break;
 }
+
+// Tutup koneksi database
 $conn->close();
 ?>
