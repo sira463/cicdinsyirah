@@ -49,23 +49,25 @@ jobs:
           DB_HOST: 127.0.0.1
         # Masukkan skema database dari kontak.sql
         run: |
+          # Pastikan nama file adalah kontak.sql
           mysql -h $DB_HOST -u $DB_USER --password=$DB_PASS db_kontak_sederhana < kontak.sql
       
       - name: 🚀 Start PHP Built-in Server (Target untuk ApiTest.php)
+        # Jalankan server built-in PHP di background
         run: nohup php -S 127.0.0.1:8000 &
       
       - name: 🧪 Jalankan Pengujian Otomatis (PHPUnit)
-        # Pastikan api.php menggunakan kredensial database CI (root/root)
         run: |
           # Ganti DB Credential di api.php agar bisa konek ke MariaDB service
           sed -i "s/define('DB_SERVER', 'localhost');/define('DB_SERVER', '127.0.0.1');/" api.php
-          sed -i "s/define('DB_USERNAME', 'root');/define('DB_USERNAME', 'root');/" api.php
           sed -i "s/define('DB_PASSWORD', '');/define('DB_PASSWORD', 'root');/" api.php
+          
+          # [PERBAIKAN KRITIS]: Berikan izin eksekusi pada file PHPUnit
+          chmod +x ./vendor/bin/phpunit
           
           # Jalankan PHPUnit
           ./vendor/bin/phpunit
         env:
-          # Variabel lingkungan dummy (tidak digunakan, tapi baik untuk CI/CD)
           DB_SERVER: 127.0.0.1
           DB_USERNAME: root
           DB_PASSWORD: root
