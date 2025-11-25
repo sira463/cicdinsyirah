@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aplikasi CRUD Kontak Sederhana</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
+  .container { max-width: 800px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+  h1,h2 { color:#333; }
+  input { padding:8px; border:1px solid #ccc; border-radius:4px; }
+  button { padding:10px 15px; border:none; border-radius:4px; cursor:pointer; color:#fff; }
+  .submit-btn { background:#28a745; }
+  .submit-btn:hover { background:#218838; }
+  .edit-btn { background:#007bff; }
+  .edit-btn:hover { background:#0056b3; }
+  .delete-btn { background:#dc3545; }
+  .delete-btn:hover { background:#c82333; }
+  #search { width:95%; padding:10px; margin-bottom:20px; }
+  ul { list-style:none; padding:0; }
+  li { display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee; }
+  li:last-child { border-bottom:none; }
+  .contact-info strong { display:block; font-size:1.1em; }
+  .contact-actions button { margin-left:5px; }
+
+.contact-info label {
+  font-size: 12px;
+  color: #555;
+  display: block;
+  margin-top: 4px;
+}
+.contact-info .field-value {
+  margin-bottom: 6px;
+}
+
+  /* Modal Style */
+  .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); }
+  .modal-content { background:#fff; margin:10% auto; padding:20px; border-radius:8px; width:400px; box-shadow:0 5px 15px rgba(0,0,0,0.3); }
+  .close-btn { float:right; font-size:24px; cursor:pointer; }
+  .modal-content form { display:flex; flex-direction:column; gap:10px; margin-top:20px; }
+
+  /* Toast */
+  #toast-container { position:fixed; top:20px; right:20px; z-index:2000; }
+  .toast { padding:12px 20px; margin-bottom:10px; border-radius:6px; color:#fff; font-weight:bold; box-shadow:0 3px 8px rgba(0,0,0,0.2); animation: fadein 0.3s, fadeout 0.5s 2.5s; }
+  .toast.success { background:#28a745; }
+  .toast.error { background:#dc3545; }
+  @keyframes fadein { from {opacity:0; right:0;} to {opacity:1; right:20px;} }
+  @keyframes fadeout { from {opacity:1;} to {opacity:0;} }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Aplikasi CRUD Kontak Sederhana</h1>
+  <button id="add-contact-btn" class="submit-btn">Tambah Kontak</button>
+  <hr>
+  <h2>Daftar Kontak</h2>
+  <input type="text" id="search" placeholder="Cari berdasarkan Nama Lengkap...">
+  <ul id="contact-list"></ul>
+</div>
+
+<!-- Modal Tambah/Edit -->
+<div id="contact-modal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn">&times;</span>
+    <h2 id="form-title">Tambah Kontak Baru</h2>
+    <form id="contact-form" novalidate>
+      <input type="text" id="nama" placeholder="Nama Lengkap">
+      <input type="text" id="telepon" placeholder="Nomor Telepon">
+      <input type="email" id="email" placeholder="Email (opsional)">
+      <button type="submit" class="submit-btn">Simpan</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Konfirmasi Hapus -->
+<div id="confirm-modal" class="modal">
+  <div class="modal-content">
+    <h2>Konfirmasi Hapus</h2>
+    <p>Apakah Anda yakin ingin menghapus kontak ini?</p>
+    <div style="text-align:right; margin-top:20px;">
+      <button id="cancel-delete-btn" style="padding:8px 12px; background:#18e976; margin-right:10px;">Batal</button>
+      <button id="confirm-delete-btn" style="padding:8px 12px; background:#dc3545; color:#fff; border:none; border-radius:4px;">Ya</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const contactForm = document.getElementById('contact-form');
+  const contactList = document.getElementById('contact-list');
+  const searchInput = document.getElementById('search');
+  const formTitle = document.getElementById('form-title');
+  let editingId = null;
+  let deleteId = null;
+
+  const modal = document.getElementById('contact-modal');
+  const addBtn = document.getElementById('add-contact-btn');
+  const closeBtn = document.querySelector('.close-btn');
+
+  const confirmModal = document.getElementById('confirm-modal');
+  const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+  const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+
+  function showToast(message, type='success'){
+    const container = document.getElementById('toast-container');
+    const div = document.createElement('div');
+    div.className=`toast ${type}`;
+    div.textContent=message;
+    container.appendChild(div);
+    setTimeout(()=>div.remove(),3000);
+  }
+
+  addBtn.onclick = ()=>{
+    contactForm.reset();
+    formTitle.textContent='Tambah Kontak Baru';
+    editingId=null;
+    modal.style.display='block';
+  };
+
+  closeBtn.onclick = ()=>modal.style.display='none';
+  window.onclick = (e)=>{
+    if(e.target===modal) modal.style.display='none';
+    if(e.target===confirmModal) confirmModal.style.display='none';
+  };
+
+  contactForm.onsubmit = async (e)=>{
+    e.preventDefault();
+    const nama = document.getElementById('nama').value.trim();
+    const telepon = document.getElementById('telepon').value.trim();
+    const email = document.getElementById('email').value.trim();
+
+    // Validasi nama
+    if(nama === '') { showToast('Nama tidak boleh kosong', 'error'); return; }
+
+    // Validasi telepon
+    if(telepon === '') { showToast('Nomor Telepon tidak boleh kosong', 'error'); return; }
+    if(!/^[0-9]+$/.test(telepon)) { showToast('Nomor Telepon hanya boleh angka', 'error'); return; }
+
+    // Validasi email opsional
+    if(email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Format email tidak valid', 'error'); return; }
+
+    const contactData = { nama, telepon, email };
+    if(editingId){ contactData.id = editingId; await updateContact(contactData); }
+    else await createContact(contactData);
+
+    contactForm.reset();
+    formTitle.textContent='Tambah Kontak Baru';
+    editingId=null;
+    modal.style.display='none';
+    fetchContacts();
+  };
+
+  searchInput.oninput = ()=>{ setTimeout(fetchContacts,300); };
+
+  async function fetchContacts(){
+    const searchTerm = searchInput.value.trim();
+    try{
+      const res = await fetch(`api.php?search=${searchTerm}`);
+      const data = await res.json();
+      renderContacts(data.data, searchTerm);
+    }catch(e){ console.error(e); }
+  }
+
+  async function createContact(contact){
+    try{
+      const res = await fetch('api.php',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(contact)});
+      const data = await res.json();
+      if(data.status==='error'){
+        showToast(data.message,'error');
+      } else showToast('Kontak berhasil disimpan','success');
+    }catch(e){ console.error(e); }
+  }
+
+  async function updateContact(contact){
+    try{
+      const res = await fetch('api.php',{method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(contact)});
+      const data = await res.json();
+      if(data.status==='error'){
+        showToast(data.message,'error');
+      } else showToast('Kontak berhasil diperbarui','success');
+    }catch(e){ console.error(e); }
+  }
+
+  async function deleteContact(id){
+    try{
+      const res = await fetch('api.php',{method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})});
+      const data = await res.json();
+      data.status==='success'? showToast('Kontak berhasil dihapus','success') : showToast('Gagal menghapus kontak','error');
+      fetchContacts();
+    }catch(e){ console.error(e); }
+  }
+
+  function renderContacts(contacts, searchTerm=''){
+    contactList.innerHTML='';
+
+    if ((!contacts || contacts.length === 0) && searchTerm === '') {
+      contactList.innerHTML = '<p>Daftar kontak masih kosong. Silakan tambah kontak baru.</p>';
+      return;
+    }
+
+    if ((!contacts || contacts.length === 0) && searchTerm !== '') {
+      contactList.innerHTML = `<p>Kontak tidak ditemukan</p>`;
+      return;
+    }
+
+    contacts.forEach(c=>{
+      const li=document.createElement('li');
+      li.innerHTML=`
+        <div class="contact-info">
+          <label>Nama:</label>
+    <div class="field-value"><strong>${c.nama}</strong></div>
+
+    <label>No HP:</label>
+    <div class="field-value">${c.telepon}</div>
+        </div>
+        <div class="contact-actions">
+          <button class="edit-btn" data-id="${c.id}" data-nama="${c.nama}" data-telepon="${c.telepon}" data-email="${c.email||''}">Edit</button>
+          <button class="delete-btn" data-id="${c.id}">Hapus</button>
+        </div>
+      `;
+      contactList.appendChild(li);
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(btn=>{
+      btn.onclick=e=>{
+        const {id,nama,telepon,email} = e.target.dataset;
+        document.getElementById('nama').value=nama;
+        document.getElementById('telepon').value=telepon;
+        document.getElementById('email').value=email;
+        formTitle.textContent='Edit Kontak';
+        editingId=id;
+        modal.style.display='block';
+      };
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn=>{
+      btn.onclick=e=>{
+        deleteId = e.target.dataset.id;
+        confirmModal.style.display='block';
+      };
+    });
+  }
+
+  cancelDeleteBtn.onclick = ()=>{
+    deleteId=null;
+    confirmModal.style.display='none';
+  };
+  confirmDeleteBtn.onclick = ()=>{
+    if(deleteId){
+      deleteContact(deleteId);
+      deleteId=null;
+      confirmModal.style.display='none';
+    }
+  };
+
+  fetchContacts();
+});
+</script>
+</body>
+</html>

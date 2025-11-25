@@ -1,0 +1,72 @@
+name: PHP CRUD - CI Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test_backend:
+    runs-on: ubuntu-latest
+    
+    # Konfigurasi layanan database MariaDB
+    services:
+      mariadb:
+        image: mariadb:10.5
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: db_kontak_sederhana
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: 📥 Checkout Kode Sumber
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup PHP Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2' # Versi PHP yang Anda gunakan
+          extensions: mysqli
+          tools: composer
+          
+      - name: 📦 Instal Dependensi Composer (PHPUnit)
+        run: composer install --prefer-dist --no-progress
+
+      - name: ⏳ Tunggu MariaDB Ready
+        run: sleep 10
+
+      - name: 🛠️ Setup Database & Import kontak.sql
+        env:
+          DB_USER: root
+          DB_PASS: root
+          DB_HOST: 127.0.0.1
+        # Masukkan skema database dari kontak.sql
+        run: |
+          mysql -h $DB_HOST -u $DB_USER --password=$DB_PASS db_kontak_sederhana < kontak.sql
+      
+      - name: 🚀 Start PHP Built-in Server (Target untuk ApiTest.php)
+        run: nohup php -S 127.0.0.1:8000 &
+      
+      - name: 🧪 Jalankan Pengujian Otomatis (PHPUnit)
+        # Pastikan api.php menggunakan kredensial database CI (root/root)
+        run: |
+          # Ganti DB Credential di api.php agar bisa konek ke MariaDB service
+          sed -i "s/define('DB_SERVER', 'localhost');/define('DB_SERVER', '127.0.0.1');/" api.php
+          sed -i "s/define('DB_USERNAME', 'root');/define('DB_USERNAME', 'root');/" api.php
+          sed -i "s/define('DB_PASSWORD', '');/define('DB_PASSWORD', 'root');/" api.php
+          
+          # Jalankan PHPUnit
+          ./vendor/bin/phpunit
+        env:
+          # Variabel lingkungan dummy (tidak digunakan, tapi baik untuk CI/CD)
+          DB_SERVER: 127.0.0.1
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          DB_NAME: db_kontak_sederhana
