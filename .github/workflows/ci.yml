@@ -39,8 +39,8 @@ jobs:
       - name: 📦 Instal Dependensi Composer (PHPUnit)
         run: composer install --prefer-dist --no-progress
 
-      - name: ⏳ Tunggu MariaDB Ready
-        run: sleep 10
+      - name: ⏳ Tunggu MariaDB Ready (Ditingkatkan menjadi 15s)
+        run: sleep 15
 
       - name: 🛠️ Setup Database & Import kontak.sql
         env:
@@ -49,20 +49,26 @@ jobs:
           DB_HOST: 127.0.0.1
         # Masukkan skema database dari kontak.sql
         run: |
-          # Pastikan nama file adalah kontak.sql
           mysql -h $DB_HOST -u $DB_USER --password=$DB_PASS db_kontak_sederhana < kontak.sql
       
       - name: 🚀 Start PHP Built-in Server (Target untuk ApiTest.php)
-        # Jalankan server built-in PHP di background
         run: nohup php -S 127.0.0.1:8000 &
+        
+      - name: ⏳ Tunggu PHP Server Ready
+        run: sleep 5
       
       - name: 🧪 Jalankan Pengujian Otomatis (PHPUnit)
         run: |
           # Ganti DB Credential di api.php agar bisa konek ke MariaDB service
-          sed -i "s/define('DB_SERVER', 'localhost');/define('DB_SERVER', '127.0.0.1');/" api.php
-          sed -i "s/define('DB_PASSWORD', '');/define('DB_PASSWORD', 'root');/" api.php
+          # Menggunakan delimiter '|' yang lebih aman
+          sed -i "s|define('DB_SERVER', 'localhost');|define('DB_SERVER', '127.0.0.1');|" api.php
+          sed -i "s|define('DB_PASSWORD', '');|define('DB_PASSWORD', 'root');|" api.php
           
-          # [PERBAIKAN KRITIS]: Berikan izin eksekusi pada file PHPUnit
+          # [DEBUGGING]: Tampilkan baris koneksi di api.php untuk verifikasi
+          echo "Isi api.php setelah modifikasi koneksi:"
+          grep "DB_" api.php
+          
+          # Berikan izin eksekusi pada file PHPUnit
           chmod +x ./vendor/bin/phpunit
           
           # Jalankan PHPUnit
