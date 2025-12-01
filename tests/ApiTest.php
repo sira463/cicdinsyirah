@@ -43,7 +43,7 @@ class ApiTest extends TestCase
     }
 
     /**
-     * TC-03: Tambah kontak dengan data valid (Create)
+     *  Tambah kontak dengan data valid (Create)
      */
     public function testCreateContactValid()
     {
@@ -68,7 +68,7 @@ class ApiTest extends TestCase
     }
 
     /**
-     * TC-04: Validasi Nama tidak boleh kosong
+     *  Validasi Nama tidak boleh kosong
      */
     public function testValidateNoName()
     {
@@ -79,7 +79,7 @@ class ApiTest extends TestCase
     }
 
     /**
-     * TC-06: Validasi No HP hanya boleh angka
+     *  Validasi No HP hanya boleh angka
      */
     public function testValidatePhoneFormat()
     {
@@ -90,7 +90,7 @@ class ApiTest extends TestCase
     }
 
     /**
-     * TC-07: Validasi Email tidak valid (tidak ada @gmail.com)
+     *  Validasi Email tidak valid (tidak ada @gmail.com)
      */
     public function testValidateEmailFormat()
     {
@@ -101,31 +101,31 @@ class ApiTest extends TestCase
     }
     
     /**
-     * TC-08 & TC-09: Pencarian Kontak (Read)
+     *  Pencarian Kontak (Read)
      */
     public function testReadSearchContact()
     {
-        // TC-08: Pencarian yang berhasil (cari 'Andi')
+        //  Pencarian yang berhasil (cari 'Andi')
         $responseSuccess = $this->makeApiCall('GET', [], 'Andi');
         $this->assertEquals('success', $responseSuccess['status']);
         // Asumsi data 'Andi' sudah ada di database
         $this->assertGreaterThanOrEqual(1, count($responseSuccess['data']), "TC-08 Gagal: Kontak 'Andi' tidak ditemukan."); 
 
-        // TC-09: Pencarian yang gagal (cari 'Xyz')
+        //  Pencarian yang gagal (cari 'Xyz')
         $responseFail = $this->makeApiCall('GET', [], 'Xyz');
         $this->assertEquals('success', $responseFail['status']);
         $this->assertCount(0, $responseFail['data'], "TC-09 Gagal: Pencarian 'Xyz' seharusnya kosong.");
     }
 
     /**
-     * TC-10 & TC-11: Edit kontak (Update)
-     * Telah diaktifkan menggunakan logic PUT yang sudah ada di api.php
+     *  Edit kontak (Update)
+     * 
      */
     public function testUpdateContact()
     {
         $this->assertNotNull(self::$lastInsertId, "ID Kontak dibutuhkan untuk TC-10/11.");
 
-        // Data baru untuk update
+        
         $validUpdateData = [
             'id' => self::$lastInsertId,
             'nama' => 'Test Update OK', // Nama baru
@@ -133,15 +133,15 @@ class ApiTest extends TestCase
             'email' => 'update.ok@gmail.com'
         ];
         
-        // Kirim permintaan PUT
+        
         $response = $this->makeApiCall('PUT', $validUpdateData);
 
-        // TC-10: Cek apakah update berhasil
+        // Cek apakah update berhasil
         $this->assertEquals('success', $response['status'], 
             "TC-10 Gagal: Update valid. Pesan: " . ($response['message'] ?? 'N/A')
         );
         
-        // Verifikasi Data (TC-11): Cek apakah data di database sudah berubah
+        // Cek apakah data di database sudah berubah
         $verificationResponse = $this->makeApiCall('GET', [], 'Test Update OK');
         
         $this->assertEquals(1, count($verificationResponse['data']), "TC-11 Gagal: Kontak hasil update tidak ditemukan.");
@@ -153,8 +153,8 @@ class ApiTest extends TestCase
     }
 
     /**
-     * TC-12: Hapus kontak (Delete)
-     * Telah diaktifkan menggunakan logic DELETE yang sudah ada di api.php
+     *  Hapus kontak (Delete)
+     * 
      */
     public function testDeleteContact()
     {
@@ -162,20 +162,20 @@ class ApiTest extends TestCase
 
         $deleteData = ['id' => self::$lastInsertId];
         
-        // Kirim permintaan DELETE
+        
         $response = $this->makeApiCall('DELETE', $deleteData);
 
-        // TC-12: Cek apakah delete berhasil
+        //  Cek apakah delete berhasil
         $this->assertEquals('success', $response['status'], 
             "TC-12 Gagal: Delete kontak. Pesan: " . ($response['message'] ?? 'N/A')
         );
 
-        // Verifikasi Penghapusan: Cek apakah kontak tersebut sudah tidak ada lagi
-        $verificationResponse = $this->makeApiCall('GET', [], 'Test Update OK'); // Cari berdasarkan nama terakhir
+        
+        $verificationResponse = $this->makeApiCall('GET', [], 'Test Update OK'); 
         
         $this->assertCount(0, $verificationResponse['data'], "TC-12 Gagal: Kontak masih ditemukan setelah dihapus.");
         
-        // Set ID menjadi null setelah penghapusan berhasil
+        
         self::$lastInsertId = null;
     }
 }
